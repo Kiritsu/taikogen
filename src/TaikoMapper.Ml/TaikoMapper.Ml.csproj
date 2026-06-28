@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The mapper: tokenizer + per-tick features, the model, training, and inference. Parses .osu
+    (Beatmap) and analyses audio (Audio) to build training data, and runs the model (TorchSharp).
+  -->
+
+  <ItemGroup>
+    <ProjectReference Include="..\TaikoMapper.Domain\TaikoMapper.Domain.csproj" />
+    <ProjectReference Include="..\TaikoMapper.Beatmap\TaikoMapper.Beatmap.csproj" />
+    <ProjectReference Include="..\TaikoMapper.Audio\TaikoMapper.Audio.csproj" />
+  </ItemGroup>
+
+  <!-- libtorch-cpu is a large native backend; it loads lazily on first tensor op, so torch-free
+       paths (e.g. `dataset build`) don't pay for it at runtime. -->
+  <ItemGroup>
+    <PackageReference Include="TorchSharp" />
+    <PackageReference Include="libtorch-cpu" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,33 @@
+<Project>
+
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
+  </PropertyGroup>
+
+  <ItemGroup Label="osu!">
+    <PackageVersion Include="ppy.osu.Game" Version="2026.601.0" />
+    <PackageVersion Include="ppy.osu.Game.Rulesets.Taiko" Version="2026.601.0" />
+  </ItemGroup>
+
+  <ItemGroup Label="Audio + DSP">
+    <PackageVersion Include="FftFlat" Version="1.0.1" />
+    <PackageVersion Include="NAudio.Core" Version="2.3.0" />
+    <PackageVersion Include="NLayer" Version="1.16.0" />
+    <PackageVersion Include="NVorbis" Version="0.10.5" />
+  </ItemGroup>
+
+  <ItemGroup Label="ML">
+    <!-- TorchSharp = managed bindings; libtorch-cpu = native backend (CPU; AMD/ROCm not shipped). -->
+    <PackageVersion Include="TorchSharp" Version="0.107.0" />
+    <PackageVersion Include="libtorch-cpu" Version="2.10.0" />
+  </ItemGroup>
+
+  <ItemGroup Label="Test">
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.6.0" />
+    <PackageVersion Include="NUnit" Version="4.6.1" />
+    <PackageVersion Include="NUnit3TestAdapter" Version="4.6.0" />
+    <PackageVersion Include="NUnit.Analyzers" Version="4.6.0" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Decode + analysis: BPM/offset/onsets and the rhythm grid. -->
+
+  <ItemGroup>
+    <ProjectReference Include="..\TaikoMapper.Domain\TaikoMapper.Domain.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="FftFlat" />
+    <PackageReference Include="NAudio.Core" />
+    <PackageReference Include="NLayer" />
+    <PackageReference Include="NVorbis" />
+  </ItemGroup>
+
+</Project>

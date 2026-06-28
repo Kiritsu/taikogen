@@ -1,0 +1,15 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/TaikoMapper.Audio/TaikoMapper.Audio.csproj" />
+    <Project Path="src/TaikoMapper.Beatmap/TaikoMapper.Beatmap.csproj" />
+    <Project Path="src/TaikoMapper.Cli/TaikoMapper.Cli.csproj" />
+    <Project Path="src/TaikoMapper.Domain/TaikoMapper.Domain.csproj" />
+    <Project Path="src/TaikoMapper.Ml/TaikoMapper.Ml.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/TaikoMapper.Audio.Tests/TaikoMapper.Audio.Tests.csproj" />
+    <Project Path="tests/TaikoMapper.Beatmap.Tests/TaikoMapper.Beatmap.Tests.csproj" />
+    <Project Path="tests/TaikoMapper.Cli.Tests/TaikoMapper.Cli.Tests.csproj" />
+    <Project Path="tests/TaikoMapper.Ml.Tests/TaikoMapper.Ml.Tests.csproj" />
+  </Folder>
+</Solution>

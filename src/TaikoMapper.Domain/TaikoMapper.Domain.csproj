@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Core domain models: RhythmGrid, TimingSegment, Onset, NoteEvent, TaikoChart. Depends on
+    NOTHING. The shared vocabulary every other project speaks in.
+  -->
+
+</Project>

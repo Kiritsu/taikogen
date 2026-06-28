@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The wrapper around the official osu! libraries. ALL .osu parsing, serialization, and
+    difficulty computation goes through here. Never hand-roll the format or the difficulty math.
+  -->
+
+  <ItemGroup>
+    <ProjectReference Include="..\TaikoMapper.Domain\TaikoMapper.Domain.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="ppy.osu.Game" />
+    <PackageReference Include="ppy.osu.Game.Rulesets.Taiko" />
+  </ItemGroup>
+
+</Project>

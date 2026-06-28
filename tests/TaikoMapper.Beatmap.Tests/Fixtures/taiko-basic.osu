@@ -1,0 +1,83 @@
+osu file format v14
+
+[General]
+AudioFilename: audio.mp3
+AudioLeadIn: 0
+PreviewTime: -1
+Countdown: 0
+SampleSet: Normal
+StackLeniency: 0.7
+Mode: 1
+LetterboxInBreaks: 0
+WidescreenStoryboard: 0
+
+[Editor]
+DistanceSpacing: 1
+BeatDivisor: 4
+GridSize: 32
+TimelineZoom: 1
+
+[Metadata]
+Title:Test Taiko Fixture
+TitleUnicode:Test Taiko Fixture
+Artist:TaikoMapper
+ArtistUnicode:TaikoMapper
+Creator:TaikoMapper
+Version:M0 Round-Trip
+Source:
+Tags:test fixture taiko m0
+BeatmapID:0
+BeatmapSetID:-1
+
+[Difficulty]
+HPDrainRate:5
+CircleSize:5
+OverallDifficulty:5
+ApproachRate:5
+SliderMultiplier:1.4
+SliderTickRate:1
+
+[Events]
+//Background and Video events
+//Break Periods
+//Storyboard Layer 0 (Background)
+//Storyboard Layer 1 (Fail)
+//Storyboard Layer 2 (Pass)
+//Storyboard Layer 3 (Foreground)
+//Storyboard Layer 4 (Overlay)
+//Storyboard Sound Samples
+
+[TimingPoints]
+0,300,4,1,0,100,1,0
+
+
+[HitObjects]
+256,192,0,1,0,0:0:0:0:
+256,192,300,1,8,0:0:0:0:
+256,192,600,1,0,0:0:0:0:
+256,192,900,1,8,0:0:0:0:
+256,192,1200,1,0,0:0:0:0:
+256,192,1275,1,0,0:0:0:0:
+256,192,1350,1,0,0:0:0:0:
+256,192,1425,1,0,0:0:0:0:
+256,192,1500,1,8,0:0:0:0:
+256,192,1800,1,0,0:0:0:0:
+256,192,2100,1,8,0:0:0:0:
+256,192,2400,1,0,0:0:0:0:
+256,192,2550,1,8,0:0:0:0:
+256,192,2700,1,0,0:0:0:0:
+256,192,2850,1,8,0:0:0:0:
+256,192,3000,1,0,0:0:0:0:
+256,192,3150,1,8,0:0:0:0:
+256,192,3300,1,0,0:0:0:0:
+256,192,3450,1,8,0:0:0:0:
+256,192,3600,1,0,0:0:0:0:
+256,192,3675,1,8,0:0:0:0:
+256,192,3750,1,0,0:0:0:0:
+256,192,3825,1,8,0:0:0:0:
+256,192,3900,1,0,0:0:0:0:
+256,192,3975,1,8,0:0:0:0:
+256,192,4050,1,0,0:0:0:0:
+256,192,4125,1,8,0:0:0:0:
+256,192,4200,1,4,0:0:0:0:
+256,192,4800,1,4,0:0:0:0:

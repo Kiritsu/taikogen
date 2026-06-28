@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Console host: analyze | generate (model) | dataset | train | timing-eval | difficulty. -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>taikomapper</AssemblyName>
+    <RootNamespace>TaikoMapper.Cli</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\TaikoMapper.Domain\TaikoMapper.Domain.csproj" />
+    <ProjectReference Include="..\TaikoMapper.Audio\TaikoMapper.Audio.csproj" />
+    <ProjectReference Include="..\TaikoMapper.Beatmap\TaikoMapper.Beatmap.csproj" />
+    <ProjectReference Include="..\TaikoMapper.Ml\TaikoMapper.Ml.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="TaikoMapper.Cli.Tests" />
+  </ItemGroup>
+
+</Project>

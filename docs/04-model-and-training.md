@@ -6,7 +6,7 @@ CPU `libtorch` backend (no GPU required).
 
 ## 4.1 The network
 
-[`TaikoStyleModel`](../src/TaikoMapper.Ml/TaikoStyleModel.cs) predicts, for each grid tick, a probability
+[`TaikoStyleModel`](../src/TaikoMapper.Ml/Model/TaikoStyleModel.cs) predicts, for each grid tick, a probability
 over the five tokens. It's small and autoregressive — each tick's prediction depends on the audio
 features there, the chosen style, **and the previously emitted token**, so it can learn color patterns
 (don/kat runs, kat doublets, color inversions) that the audio alone doesn't determine.
@@ -35,7 +35,7 @@ inference.
 
 ## 4.2 Building a corpus
 
-[`CorpusBuilder`](../src/TaikoMapper.Ml/CorpusBuilder.cs) turns a folder of beatmaps into training data.
+[`CorpusBuilder`](../src/TaikoMapper.Ml/Data/CorpusBuilder.cs) turns a folder of beatmaps into training data.
 For each taiko `.osu` whose audio resolves, it:
 
 1. parses the map with the osu! library and extracts its notes (and the mapper's name and the official
@@ -46,7 +46,7 @@ For each taiko `.osu` whose audio resolves, it:
 4. extracts the per-tick features.
 
 It runs across maps in parallel and skips anything unreadable, so a large corpus builds quickly. The
-output ([`DatasetWriter`](../src/TaikoMapper.Ml/DatasetWriter.cs)) is one folder per map containing:
+output ([`DatasetWriter`](../src/TaikoMapper.Ml/Data/DatasetWriter.cs)) is one folder per map containing:
 
 - `tokens.npy` — the token per tick (`uint8`, shape `[T]`),
 - `features.npy` — the features (`float32`, shape `[T, 13]`),
@@ -61,11 +61,11 @@ with only a handful is flagged as thin.
 
 ## 4.3 The training loop
 
-Maps are long (tens of thousands of ticks), so [`TaikoDataset`](../src/TaikoMapper.Ml/TaikoDataset.cs)
+Maps are long (tens of thousands of ticks), so [`TaikoDataset`](../src/TaikoMapper.Ml/Data/TaikoDataset.cs)
 slices them into fixed-length **windows** (with a stride, so windows overlap) — the units the model
 trains on.
 
-[`StyleTrainer`](../src/TaikoMapper.Ml/StyleTrainer.cs) trains with standard ingredients:
+[`StyleTrainer`](../src/TaikoMapper.Ml/Model/StyleTrainer.cs) trains with standard ingredients:
 
 - **Teacher forcing.** During training the "previous token" fed in is the *ground-truth* previous token
   (a start-of-sequence marker at tick 0), so the model learns one-step-ahead prediction without
@@ -78,7 +78,7 @@ trains on.
   so a long run can be stopped at any point and the latest model is on disk.
 
 Training writes `model.dat` (the weights) plus a `model.dat.json` sidecar
-([`StyleModelIO`](../src/TaikoMapper.Ml/StyleModelIO.cs)) holding the architecture dimensions, the
+([`StyleModelIO`](../src/TaikoMapper.Ml/Model/StyleModelIO.cs)) holding the architecture dimensions, the
 ticks-per-beat, the feature names, and the author→id map — everything inference needs to reconstruct
 and drive the model.
 

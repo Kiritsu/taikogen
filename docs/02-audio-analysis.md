@@ -8,7 +8,7 @@ map plays out of sync no matter how good the note choices are. All of it lives i
 ## 2.1 Decoding to mono PCM
 
 Audio on disk is compressed (MP3, Ogg Vorbis) or packed (WAV). The first step
-([`AudioDecoder`](../src/TaikoMapper.Audio/AudioDecoder.cs)) decodes it to a flat array of floating-point
+([`AudioDecoder`](../src/TaikoMapper.Audio/Decoding/AudioDecoder.cs)) decodes it to a flat array of floating-point
 **samples** — amplitude over time — and downmixes to a single (mono) channel resampled to 44.1 kHz.
 WAV is read with NAudio, MP3 with NLayer, Ogg with NVorbis.
 
@@ -17,7 +17,7 @@ padding**, so a naively decoded compressed file is a few tens of milliseconds la
 osu! plays. The decoder trims a fixed compressed-format delay so detected onsets line up with the
 game; WAV and synthetic signals are untouched.
 
-The result is a [`MonoAudio`](../src/TaikoMapper.Audio/MonoAudio.cs) — samples plus a sample rate.
+The result is a [`MonoAudio`](../src/TaikoMapper.Audio/Decoding/MonoAudio.cs) — samples plus a sample rate.
 
 ## 2.2 Onsets via spectral flux
 
@@ -30,11 +30,11 @@ one frame's spectrum to the previous and summing only the *increases* (half-wave
 **spectral flux**) gives a number per frame that spikes when new energy arrives. That per-frame series
 is the **onset detection function**.
 
-[`SpectralFluxAnalyzer`](../src/TaikoMapper.Audio/SpectralFluxAnalyzer.cs) computes this and, in the same
+[`SpectralFluxAnalyzer`](../src/TaikoMapper.Audio/Onsets/SpectralFluxAnalyzer.cs) computes this and, in the same
 pass, the per-frame energy in six **log-spaced frequency bands** (bass → treble). The bands are the
 song's coarse *timbre* over time — what distinguishes a kick drum from a hi-hat from a vocal — and the
 model later uses them as features. The output is an
-[`OnsetEnvelope`](../src/TaikoMapper.Audio/OnsetEnvelope.cs): the flux series plus the band energies.
+[`OnsetEnvelope`](../src/TaikoMapper.Audio/Onsets/OnsetEnvelope.cs): the flux series plus the band energies.
 
 ## 2.3 Tempo
 
@@ -43,13 +43,13 @@ how well it lines up with a time-shifted copy of itself — peaks at that spacin
 the beat period, and so the tempo in BPM.
 
 The catch is **octave ambiguity**: a 120 BPM track also correlates at 60 and 240. To resolve it,
-[`TempoEstimator`](../src/TaikoMapper.Audio/TempoEstimator.cs) weights candidates by a broad log-Gaussian
+[`TempoEstimator`](../src/TaikoMapper.Audio/Timing/TempoEstimator.cs) weights candidates by a broad log-Gaussian
 **prior** centered on typical osu! tempos, so a sensible octave wins without hard-coding one value.
 
 ## 2.4 Automatic timing
 
 Knowing the tempo isn't enough — we need *where* the beats land (the **offset**), and that has to stay
-correct for the whole song. [`TimingAnalyzer`](../src/TaikoMapper.Audio/TimingAnalyzer.cs) produces a list
+correct for the whole song. [`TimingAnalyzer`](../src/TaikoMapper.Audio/Timing/TimingAnalyzer.cs) produces a list
 of **timing segments** (each a start time + BPM, i.e. one osu! timing point) in two tiers.
 
 **Tier 1 — offset and drift.** The precise offset is the beat *phase* that best aligns the onset
@@ -73,23 +73,23 @@ detector against a folder of real maps' human timing points, so its accuracy is 
 ## 2.5 Peak-picking and quantization
 
 The onset function is continuous; we want discrete events.
-[`OnsetPeakPicker`](../src/TaikoMapper.Audio/OnsetPeakPicker.cs) finds local maxima that stand out above
+[`OnsetPeakPicker`](../src/TaikoMapper.Audio/Onsets/OnsetPeakPicker.cs) finds local maxima that stand out above
 an adaptive local threshold — the actual onsets.
 
 Each onset is then **quantized**: snapped to the nearest **beat subdivision** of its active timing
 segment. Taiko notes sit on simple fractions of a beat — 1/1, 1/2, 1/3, 1/4, 1/6, 1/8 (and finer 1/12,
-1/16). [`RhythmQuantizer`](../src/TaikoMapper.Audio/RhythmQuantizer.cs) records, per onset, the snapped time,
+1/16). [`RhythmQuantizer`](../src/TaikoMapper.Audio/Grid/RhythmQuantizer.cs) records, per onset, the snapped time,
 which subdivision it landed on, the signed residual (how far it moved), and whether it was close enough
 to count as on-tick. The residual lets later steps distinguish a confident snap from a guess.
 
 ## 2.6 The rhythm grid
 
-The output is a [`RhythmGrid`](../src/TaikoMapper.Domain/RhythmGrid.cs): the ordered
-[`TimingSegment`](../src/TaikoMapper.Domain/TimingSegment.cs)s plus the quantized onsets. A timing segment
+The output is a [`RhythmGrid`](../src/TaikoMapper.Domain/Rhythm/RhythmGrid.cs): the ordered
+[`TimingSegment`](../src/TaikoMapper.Domain/Timing/TimingSegment.cs)s plus the quantized onsets. A timing segment
 knows how to convert between absolute time and beats (`TimeToBeats` / `BeatsToTime`), which is what lets
 every later step speak in *ticks* (48 per beat) rather than milliseconds. Because the grid carries
 multiple segments, a song with drift or tempo changes is represented faithfully, and the notes the
 model places stay aligned to the music throughout.
 
-[`GridAnalyzer`](../src/TaikoMapper.Audio/GridAnalyzer.cs) ties it together: audio in, rhythm
+[`GridAnalyzer`](../src/TaikoMapper.Audio/Grid/GridAnalyzer.cs) ties it together: audio in, rhythm
 grid out.

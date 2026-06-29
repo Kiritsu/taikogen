@@ -39,3 +39,6 @@ Thumbs.db
 # offline use only; never committed. Keep the README so the folder is documented.
 /reference/*
 !/reference/README.md
+/dataset/*
+model.dat
+model.dat.json

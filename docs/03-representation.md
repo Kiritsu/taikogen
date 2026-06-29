@@ -7,20 +7,20 @@ model sees at each position. Both live in [`TaikoMapper.Ml`](../src/TaikoMapper.
 ## 3.1 The grid as a sequence of ticks
 
 The rhythm grid divides each beat into **48 ticks**
-([`MapTokenizer.DefaultTicksPerBeat`](../src/TaikoMapper.Ml/MapTokenizer.cs)). Why 48? It's the smallest
+([`MapTokenizer.DefaultTicksPerBeat`](../src/TaikoMapper.Ml/Representation/MapTokenizer.cs)). Why 48? It's the smallest
 number that puts every supported subdivision on a whole tick: halves, thirds, quarters, sixths,
 eighths, twelfths, sixteenths all divide 48 evenly. So any note the analyzer can place lands exactly on
 a tick — no rounding loss.
 
 A song with one tempo is just ticks `0, 1, 2, …`. With multiple timing segments (drift re-anchors or
-tempo changes), the timeline is built by [`TokenGrid`](../src/TaikoMapper.Ml/TokenGrid.cs): each segment
+tempo changes), the timeline is built by [`TokenGrid`](../src/TaikoMapper.Ml/Representation/TokenGrid.cs): each segment
 contributes a contiguous run of ticks at its own tempo, laid end to end. `TokenGrid` is the single
 place that knows how to convert a global tick index to an absolute time and back, so the tokenizer, the
 feature extractor, and the decoder all agree on the timeline — even across a tempo change.
 
 ## 3.2 Tokens
 
-The vocabulary ([`TaikoToken`](../src/TaikoMapper.Ml/TaikoToken.cs)) is five values:
+The vocabulary ([`TaikoToken`](../src/TaikoMapper.Ml/Representation/TaikoToken.cs)) is five values:
 
 | Token | Meaning |
 |-------|---------|
@@ -31,20 +31,20 @@ The vocabulary ([`TaikoToken`](../src/TaikoMapper.Ml/TaikoToken.cs)) is five val
 | `LargeKat` | large blue ("finisher") |
 
 A whole map is therefore a flat array of tokens, one per grid tick, mostly `None` with notes sprinkled
-on. [`MapTokenizer`](../src/TaikoMapper.Ml/MapTokenizer.cs) converts between this array and a
-[`TaikoChart`](../src/TaikoMapper.Domain/TaikoChart.cs) (the list of placed notes). Encoding snaps each
+on. [`MapTokenizer`](../src/TaikoMapper.Ml/Representation/MapTokenizer.cs) converts between this array and a
+[`TaikoChart`](../src/TaikoMapper.Domain/Chart/TaikoChart.cs) (the list of placed notes). Encoding snaps each
 note to its tick; decoding emits a note at each non-`None` tick's time. Because every note already sits
 on a tick, `decode(encode(chart))` reproduces the chart exactly — including across tempo changes. (Rolls
 and spinners aren't in the vocabulary yet; the model places the five hit types.)
 
-The token + grid bundle is a [`TokenizedMap`](../src/TaikoMapper.Ml/TokenizedMap.cs): the author id, the
+The token + grid bundle is a [`TokenizedMap`](../src/TaikoMapper.Ml/Representation/TokenizedMap.cs): the author id, the
 timing segments, the ticks-per-beat, the per-segment tick counts, and the tokens.
 
 ## 3.3 Features
 
 Tokens are what the model *writes*. **Features** are what it *reads* to decide them — a vector per tick,
 aligned one-to-one with the tokens, built by
-[`MapFeatureExtractor`](../src/TaikoMapper.Ml/MapFeatureExtractor.cs). There are 13 columns:
+[`MapFeatureExtractor`](../src/TaikoMapper.Ml/Representation/MapFeatureExtractor.cs). There are 13 columns:
 
 | # | Feature | What it tells the model |
 |---|---------|-------------------------|

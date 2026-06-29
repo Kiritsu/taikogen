@@ -1,7 +1,7 @@
 # 5. Generation
 
 Generation takes a song, a trained model, an author (or none), a difficulty, and a seed, and writes a
-map. It's orchestrated by [`StyleGenerator`](../src/TaikoMapper.Ml/StyleGenerator.cs).
+map. It's orchestrated by [`StyleGenerator`](../src/TaikoMapper.Ml/Inference/StyleGenerator.cs).
 
 ## 5.1 Analyze once, decode many
 
@@ -29,7 +29,7 @@ when no author is given.
 ## 5.3 Playability guards
 
 A model can occasionally emit something physically unplayable. A safety net
-([`PlayabilityGuard`](../src/TaikoMapper.Ml/PlayabilityGuard.cs)) cleans the token sequence before it
+([`PlayabilityGuard`](../src/TaikoMapper.Ml/Inference/PlayabilityGuard.cs)) cleans the token sequence before it
 becomes a chart:
 
 - **Rate cap** — drops any note that lands sooner than a single hand could hit (a minimum gap between
@@ -59,7 +59,7 @@ it returns the closest it can get. The search is the pure, tested
 
 ## 5.5 Writing the file
 
-The decoded chart is handed to [`TaikoBeatmapBuilder`](../src/TaikoMapper.Beatmap/TaikoBeatmapBuilder.cs),
+The decoded chart is handed to [`TaikoBeatmapBuilder`](../src/TaikoMapper.Beatmap/Conversion/TaikoBeatmapBuilder.cs),
 which builds an osu! `Beatmap`: one uninherited timing point per timing segment, and a hit object per
 note. Color and finisher-size are encoded the way osu!'s taiko ruleset reads them (via the hit's
 sample flags), so the map imports correctly.

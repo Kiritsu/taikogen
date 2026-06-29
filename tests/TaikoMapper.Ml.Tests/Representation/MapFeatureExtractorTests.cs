@@ -75,4 +75,35 @@ public class MapFeatureExtractorTests
             Assert.That(f[0][diff], Is.EqualTo(0.6f).Within(1e-5), "6★ / 10");
         });
     }
+
+    [Test]
+    public void Fine_density_and_intensity_ease_off_where_the_song_is_calm()
+    {
+        var names = MapFeatureExtractor.FeatureNames;
+        var density = Array.IndexOf(names, "local_density");
+        var fine = Array.IndexOf(names, "local_density_fine");
+        var intensity = Array.IndexOf(names, "local_intensity");
+
+        // A dense 1/4 run only from beat 16 onward, so an early tick is genuinely outside the wide
+        // (±2000 ms) density window — far enough to read as calm.
+        var beatMs = Segment.BeatLengthMs;
+        var busy = new List<QuantizedOnset>();
+        for (var i = 0; i < 16; i++)
+        {
+            var t = 16 * beatMs + i * (beatMs / 4.0);
+            busy.Add(new QuantizedOnset(new Onset(t, 1.0), t, BeatDivisor.Quarter, 0.0, OnTick: true));
+        }
+
+        var f = new MapFeatureExtractor().Extract(Segment, busy, FlatEnvelope(), ticksPerBeat: 48, length: 48 * 28, targetStars: 8.0);
+        var calmTick = 48 * 2;  // beat 2 — > 2 s before any onset
+        var busyTick = 48 * 20; // beat 20 — inside the run
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(fine, Is.GreaterThanOrEqualTo(0), "local_density_fine column exists");
+            Assert.That(f[busyTick][density], Is.GreaterThan(f[calmTick][density]), "wide density higher where busy");
+            Assert.That(f[busyTick][fine], Is.GreaterThan(f[calmTick][fine]), "fine density higher where busy");
+            Assert.That(f[busyTick][intensity], Is.GreaterThan(f[calmTick][intensity]), "intensity eases off in the calm region");
+        });
+    }
 }

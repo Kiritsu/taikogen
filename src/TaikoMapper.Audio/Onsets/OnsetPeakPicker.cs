@@ -22,7 +22,7 @@ public sealed class OnsetPeakPicker
     private readonly double _minSeparationMs;
 
     public OnsetPeakPicker(
-        int localWindow = 3,
+        int localWindow = 1,
         int meanWindow = 12,
         double thresholdFactor = 1.5,
         double minSeparationMs = 30.0)
@@ -36,7 +36,21 @@ public sealed class OnsetPeakPicker
         _minSeparationMs = minSeparationMs;
     }
 
-    public IReadOnlyList<Onset> Pick(OnsetEnvelope envelope)
+    public IReadOnlyList<Onset> Pick(OnsetEnvelope envelope) => PickCore(envelope, _minSeparationMs);
+
+    /// <summary>
+    /// Peak-picks with a <b>tempo-aware</b> minimum separation: at <paramref name="bpm"/> the floor drops
+    /// to roughly a 1/32 interval (clamped), so fast 1/16 drum bursts survive instead of being merged.
+    /// </summary>
+    public IReadOnlyList<Onset> Pick(OnsetEnvelope envelope, double bpm)
+    {
+        if (bpm <= 0 || !double.IsFinite(bpm))
+            return Pick(envelope);
+        var beatMs = 60_000.0 / bpm;
+        return PickCore(envelope, Math.Clamp(beatMs / 32.0, 7.0, _minSeparationMs));
+    }
+
+    private IReadOnlyList<Onset> PickCore(OnsetEnvelope envelope, double minSeparationMs)
     {
         ArgumentNullException.ThrowIfNull(envelope);
 
@@ -52,7 +66,7 @@ public sealed class OnsetPeakPicker
         if (globalMax <= 0.0)
             return [];
 
-        var minSeparationFrames = Math.Max(1, (int)Math.Round(_minSeparationMs / 1000.0 * envelope.FrameRate));
+        var minSeparationFrames = Math.Max(1, (int)Math.Round(minSeparationMs / 1000.0 * envelope.FrameRate));
 
         var onsets = new List<Onset>();
         var lastFrame = int.MinValue;

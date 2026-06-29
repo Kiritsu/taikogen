@@ -30,6 +30,22 @@ public class RhythmQuantizerTests
     }
 
     [Test]
+    public void Extended_divisors_capture_fine_1_16_and_1_12_positions()
+    {
+        var q = new RhythmQuantizer(BeatDivisors.Extended);
+        // 150 BPM, beat = 400 ms: 1/16 = 25 ms, 1/12 ≈ 33.3 ms — both unreachable with the coarse set.
+        var sixteenth = q.Quantize(Segment, new Onset(25.0, 1.0));
+        var twelfth = q.Quantize(Segment, new Onset(400.0 / 12.0, 1.0));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(sixteenth.Divisor, Is.EqualTo(BeatDivisor.Sixteenth));
+            Assert.That(sixteenth.SnappedMs, Is.EqualTo(25.0).Within(1e-3));
+            Assert.That(twelfth.Divisor, Is.EqualTo(BeatDivisor.Twelfth));
+        });
+    }
+
+    [Test]
     public void Records_the_signed_residual_from_the_tick()
     {
         var late = new RhythmQuantizer().Quantize(Segment, new Onset(203.0, 1.0));

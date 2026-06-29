@@ -23,8 +23,8 @@ public sealed class CorpusBuilder(int ticksPerBeat = MapTokenizer.DefaultTicksPe
     private readonly MapTokenizer _tokenizer = new(ticksPerBeat);       // immutable → shared across threads
     private readonly MapFeatureExtractor _features = new(); // immutable → shared across threads
 
-    /// <summary>The expensive, timing-independent per-song analysis shared by a set's difficulties.</summary>
-    private sealed record SharedAudio(OnsetEnvelope Envelope, IReadOnlyList<Onset> Onsets);
+    /// <summary>The expensive, timing-independent per-song analysis (the onset envelope) shared by a set's difficulties.</summary>
+    private sealed record SharedAudio(OnsetEnvelope Envelope);
 
     private sealed record MapJob(int Index, string OsuPath, string AudioPath, IBeatmap Beatmap, string Version);
 
@@ -105,13 +105,13 @@ public sealed class CorpusBuilder(int ticksPerBeat = MapTokenizer.DefaultTicksPe
         return BuildExample(BeatmapIo.Load(osuPath), AnalyzeAudio(audioPath));
     }
 
-    /// <summary>Decode → onset envelope (FFT) → peak-pick. Timing-independent, so it's cached per audio file.</summary>
+    /// <summary>Decode → onset envelope (FFT). Timing-independent, so it's cached per audio file. Peak-picking
+    /// is tempo-aware and therefore done per difficulty in <see cref="BuildExample"/>.</summary>
     private static SharedAudio AnalyzeAudio(string audioPath)
     {
         var audio = AudioDecoder.Decode(audioPath);
         var envelope = new SpectralFluxAnalyzer().Analyze(audio);
-        var onsets = new OnsetPeakPicker().Pick(envelope);
-        return new SharedAudio(envelope, onsets);
+        return new SharedAudio(envelope);
     }
 
     private TrainingExample BuildExample(IBeatmap beatmap, SharedAudio shared)
@@ -123,8 +123,10 @@ public sealed class CorpusBuilder(int ticksPerBeat = MapTokenizer.DefaultTicksPe
         var chart = TaikoChartExtractor.Extract(beatmap);
         var stars = TaikoDifficulty.StarRating(beatmap);
 
-        // Quantize the shared onsets onto this difficulty's grid (cheap; timing-dependent, multi-segment).
-        var grid = new RhythmQuantizer().Quantize(chart.Segments, shared.Onsets);
+        // Peak-pick (tempo-aware, so fast bursts survive) and quantize onto this difficulty's grid.
+        // Same analysis the generator uses, so training features match inference features.
+        var onsets = new OnsetPeakPicker().Pick(shared.Envelope, chart.Segments[0].Bpm);
+        var grid = new RhythmQuantizer(BeatDivisors.Extended).Quantize(chart.Segments, onsets);
         var tokenized = _tokenizer.Encode(chart, author);
         var featureRows = _features.Extract(tokenized.Grid(), grid.Onsets, shared.Envelope, stars);
 

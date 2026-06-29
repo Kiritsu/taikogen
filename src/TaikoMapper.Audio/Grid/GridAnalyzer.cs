@@ -15,7 +15,7 @@ public sealed class GridAnalyzer(
 {
     private readonly RhythmAnalyzer _rhythm = rhythm ?? new RhythmAnalyzer();
     private readonly OnsetPeakPicker _picker = picker ?? new OnsetPeakPicker();
-    private readonly RhythmQuantizer _quantizer = quantizer ?? new RhythmQuantizer();
+    private readonly RhythmQuantizer _quantizer = quantizer ?? new RhythmQuantizer(BeatDivisors.Extended);
 
     /// <summary>Runs the full analysis from audio to a quantized grid.</summary>
     public RhythmGrid Analyze(MonoAudio audio, double? bpmOverride = null, double? offsetMsOverride = null) =>
@@ -26,7 +26,7 @@ public sealed class GridAnalyzer(
     {
         ArgumentNullException.ThrowIfNull(analysis);
 
-        var onsets = _picker.Pick(analysis.Onsets);
+        var onsets = _picker.Pick(analysis.Onsets, analysis.PrimarySegment.Bpm);
         return _quantizer.Quantize(analysis.Segments, onsets);
     }
 }

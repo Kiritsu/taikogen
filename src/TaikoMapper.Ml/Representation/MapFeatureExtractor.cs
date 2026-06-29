@@ -11,10 +11,12 @@ namespace TaikoMapper.Ml.Representation;
 /// embedding indexed by id.
 /// </summary>
 /// <remarks>
-/// Feature columns (see <see cref="FeatureNames"/>): onset strength at the tick, smoothed
-/// local onset density, the metrical phase (tick-in-beat and beat-in-bar as sin/cos), the
-/// target difficulty, and <see cref="SpectralBands"/> log-spaced spectral-band energies (the
-/// timbre at the tick — what distinguishes a kick from a hat from a vocal). All per-map normalized.
+/// Feature columns (see <see cref="FeatureNames"/>): onset strength at the tick; smoothed local onset
+/// density over a wide window (<c>local_density</c>, the section's energy) and a narrow one
+/// (<c>local_density_fine</c>, which spikes on short drum bursts); the metrical phase (tick-in-beat and
+/// beat-in-bar as sin/cos); the global <c>target_difficulty</c>; a per-tick <c>local_intensity</c>
+/// (= target × wide density, so calm sections stay easy even at a high target); and
+/// <see cref="SpectralBands"/> log-spaced spectral-band energies (the timbre at the tick). All per-map normalized.
 /// </remarks>
 public sealed class MapFeatureExtractor
 {
@@ -25,11 +27,13 @@ public sealed class MapFeatureExtractor
     [
         "onset_strength",
         "local_density",
+        "local_density_fine",
         "tick_in_beat_sin",
         "tick_in_beat_cos",
         "beat_in_bar_sin",
         "beat_in_bar_cos",
         "target_difficulty",
+        "local_intensity",
     ];
 
     public static readonly string[] FeatureNames =
@@ -38,11 +42,14 @@ public sealed class MapFeatureExtractor
     public int FeatureCount => FeatureNames.Length;
 
     private readonly double _densityWindowMs;
+    private readonly double _fineDensityWindowMs;
 
-    public MapFeatureExtractor(double densityWindowMs = 2000.0)
+    public MapFeatureExtractor(double densityWindowMs = 2000.0, double fineDensityWindowMs = 200.0)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(densityWindowMs);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(fineDensityWindowMs);
         _densityWindowMs = densityWindowMs;
+        _fineDensityWindowMs = fineDensityWindowMs;
     }
 
     /// <summary>
@@ -64,12 +71,13 @@ public sealed class MapFeatureExtractor
         for (var i = 0; i < onsets.Count; i++) onsetMs[i] = onsets[i].SnappedMs;
         Array.Sort(onsetMs);
 
-        var maxDensity = MaxDensity(onsetMs, grid);
+        var maxDensity = MaxDensity(onsetMs, grid, _densityWindowMs);
+        var maxDensityFine = MaxDensity(onsetMs, grid, _fineDensityWindowMs);
         var difficulty = Math.Clamp(targetStars / 10.0, 0.0, 1.0);
         var maxBand = MaxBands(envelope);
 
         var rows = new float[length][];
-        int lo = 0, hi = 0;
+        int lo = 0, hi = 0, loFine = 0, hiFine = 0;
         for (var tick = 0; tick < length; tick++)
         {
             var seg = grid.Segments[grid.SegmentIndexOfTick(tick)];
@@ -77,22 +85,29 @@ public sealed class MapFeatureExtractor
             var localBeat = seg.TimeToBeats(timeMs);
             double beatsPerBar = Math.Max(1, seg.BeatsPerMeasure);
 
-            // local density via a forward-moving window (tick times are time-ordered).
+            // local density via forward-moving windows (tick times are time-ordered): a wide one for
+            // section energy and a narrow one that spikes on short bursts.
             while (lo < onsetMs.Length && onsetMs[lo] < timeMs - _densityWindowMs) lo++;
             while (hi < onsetMs.Length && onsetMs[hi] <= timeMs + _densityWindowMs) hi++;
+            while (loFine < onsetMs.Length && onsetMs[loFine] < timeMs - _fineDensityWindowMs) loFine++;
+            while (hiFine < onsetMs.Length && onsetMs[hiFine] <= timeMs + _fineDensityWindowMs) hiFine++;
             var density = (hi - lo) / (2.0 * _densityWindowMs / 1000.0);
+            var densityFine = (hiFine - loFine) / (2.0 * _fineDensityWindowMs / 1000.0);
+            var densityNorm = Math.Clamp(density / maxDensity, 0.0, 1.0);
 
             var tickInBeat = localBeat - Math.Floor(localBeat);
             var beatInBar = ((localBeat % beatsPerBar) + beatsPerBar) % beatsPerBar / beatsPerBar;
 
             var row = new float[FeatureNames.Length];
             row[0] = (float)Math.Clamp(FluxAt(envelope, timeMs) / maxFlux, 0.0, 1.0);
-            row[1] = (float)Math.Clamp(density / maxDensity, 0.0, 1.0);
-            row[2] = (float)Math.Sin(2 * Math.PI * tickInBeat);
-            row[3] = (float)Math.Cos(2 * Math.PI * tickInBeat);
-            row[4] = (float)Math.Sin(2 * Math.PI * beatInBar);
-            row[5] = (float)Math.Cos(2 * Math.PI * beatInBar);
-            row[6] = (float)difficulty;
+            row[1] = (float)densityNorm;
+            row[2] = (float)Math.Clamp(densityFine / maxDensityFine, 0.0, 1.0);
+            row[3] = (float)Math.Sin(2 * Math.PI * tickInBeat);
+            row[4] = (float)Math.Cos(2 * Math.PI * tickInBeat);
+            row[5] = (float)Math.Sin(2 * Math.PI * beatInBar);
+            row[6] = (float)Math.Cos(2 * Math.PI * beatInBar);
+            row[7] = (float)difficulty;
+            row[8] = (float)(difficulty * densityNorm); // local_intensity: ease off where the song is calm
 
             var frame = (timeMs / 1000.0 * envelope.SampleRate - envelope.FrameSize / 2.0) / envelope.HopSize;
             for (var b = 0; b < SpectralBands; b++)
@@ -149,16 +164,16 @@ public sealed class MapFeatureExtractor
     }
 
     /// <summary>Peak local density over the grid (sampled per beat), so densities normalize to [0, 1] per map.</summary>
-    private double MaxDensity(double[] onsetMs, TokenGrid grid)
+    private static double MaxDensity(double[] onsetMs, TokenGrid grid, double windowMs)
     {
         var max = 1e-9;
         int lo = 0, hi = 0;
         for (var tick = 0; tick < grid.Count; tick += grid.TicksPerBeat)
         {
             var timeMs = grid.TimeMsOf(tick);
-            while (lo < onsetMs.Length && onsetMs[lo] < timeMs - _densityWindowMs) lo++;
-            while (hi < onsetMs.Length && onsetMs[hi] <= timeMs + _densityWindowMs) hi++;
-            max = Math.Max(max, (hi - lo) / (2.0 * _densityWindowMs / 1000.0));
+            while (lo < onsetMs.Length && onsetMs[lo] < timeMs - windowMs) lo++;
+            while (hi < onsetMs.Length && onsetMs[hi] <= timeMs + windowMs) hi++;
+            max = Math.Max(max, (hi - lo) / (2.0 * windowMs / 1000.0));
         }
         return max;
     }

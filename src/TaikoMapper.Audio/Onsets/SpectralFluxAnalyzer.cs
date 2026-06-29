@@ -26,7 +26,10 @@ public sealed class SpectralFluxAnalyzer
     private double[] _currentMagnitude;
     private readonly FastFourierTransform _fft;
 
-    public SpectralFluxAnalyzer(int frameSize = 1024, int hopSize = 256, int bandCount = 6)
+    // A 512-sample window (~12 ms) and 128-sample hop (~3 ms) keep enough frequency resolution for the
+    // tempo/band features while resolving onsets close enough to separate fast drum bursts (down to ~1/16
+    // at high tempos), which a wider window would smear into one bump.
+    public SpectralFluxAnalyzer(int frameSize = 512, int hopSize = 128, int bandCount = 6)
     {
         if (!IsPowerOfTwo(frameSize))
             throw new ArgumentException("Frame size must be a power of two.", nameof(frameSize));

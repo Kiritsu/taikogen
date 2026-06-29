@@ -31,6 +31,26 @@ public class OnsetPeakPickerTests
     }
 
     [Test]
+    public void Tempo_aware_picking_keeps_fast_bursts_a_flat_floor_would_merge()
+    {
+        // Impulses ~17 ms apart (1/16 at ~216 BPM). The flat 30 ms floor merges them into one;
+        // the tempo-aware floor (≈ a 1/32 interval) keeps them as a burst.
+        var flux = new double[120];
+        for (var k = 0; k < 8; k++)
+            flux[6 * k] = 1.0; // 6 frames × (128/44100 s) ≈ 17.4 ms apart
+        var odf = new OnsetEnvelope(flux, sampleRate: 44100, hopSize: 128, frameSize: 512);
+
+        var flat = new OnsetPeakPicker().Pick(odf);
+        var tempoAware = new OnsetPeakPicker().Pick(odf, bpm: 216.0);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(flat.Count, Is.LessThanOrEqualTo(2), "the flat 30 ms floor collapses the burst");
+            Assert.That(tempoAware.Count, Is.GreaterThanOrEqualTo(6), "the tempo-aware floor keeps the burst");
+        });
+    }
+
+    [Test]
     public void Returns_nothing_for_silence()
     {
         var silence = new MonoAudio(new float[SampleRate * 2], SampleRate);

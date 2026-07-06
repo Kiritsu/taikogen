@@ -15,7 +15,7 @@ The forward pass, per tick, sums three contributions into one vector and runs th
 layer:
 
 ```
-x = featureProjection(features)        # the 13 audio/metrical features → a hidden vector
+x = featureProjection(features)        # the per-tick audio/metrical features → a hidden vector
   + styleEmbedding(author)             # "who is mapping this" (the style)
   + tokenEmbedding(previousToken)      # what was placed on the tick before
 GRU(x)  →  Linear  →  logits over {None, Don, Kat, LargeDon, LargeKat}
@@ -49,7 +49,7 @@ It runs across maps in parallel and skips anything unreadable, so a large corpus
 output ([`DatasetWriter`](../src/TaikoMapper.Ml/Data/DatasetWriter.cs)) is one folder per map containing:
 
 - `tokens.npy` — the token per tick (`uint8`, shape `[T]`),
-- `features.npy` — the features (`float32`, shape `[T, 13]`),
+- `features.npy` — the features (`float32`, shape `[T, 15]`),
 - `meta.json` — author, bpm, offset, star rating, length.
 
 Plus a dataset-level `manifest.json` (every example) and `authors.json` (author → id). The `.npy`

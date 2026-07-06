@@ -51,8 +51,8 @@ that puts every supported subdivision on a whole tick.
 **Token grid** — the per-tick timeline spanning all timing segments; converts a global tick index to a
 time and back.
 
-**Feature vector** — the 13 numbers the model reads per tick (onset strength, local density, metrical
-position, target difficulty, six spectral bands).
+**Feature vector** — the 15 numbers the model reads per tick (onset strength, wide and fine local
+density, metrical position, target difficulty, local intensity, six spectral bands).
 
 **Author embedding** — a learned vector per mapper, capturing their style; added in at every tick.
 

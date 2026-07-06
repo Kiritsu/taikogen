@@ -44,16 +44,18 @@ timing segments, the ticks-per-beat, the per-segment tick counts, and the tokens
 
 Tokens are what the model *writes*. **Features** are what it *reads* to decide them — a vector per tick,
 aligned one-to-one with the tokens, built by
-[`MapFeatureExtractor`](../src/TaikoMapper.Ml/Representation/MapFeatureExtractor.cs). There are 13 columns:
+[`MapFeatureExtractor`](../src/TaikoMapper.Ml/Representation/MapFeatureExtractor.cs). There are 15 columns:
 
 | # | Feature | What it tells the model |
 |---|---------|-------------------------|
 | 1 | `onset_strength` | how strong an audio onset is at this tick — is there even a sound to map? |
 | 2 | `local_density` | how busy the surrounding few seconds are — calm verse vs. dense chorus |
-| 3–4 | `tick_in_beat` (sin, cos) | position within the beat — downbeat? off-beat? a 1/4 subdivision? |
-| 5–6 | `beat_in_bar` (sin, cos) | position within the bar — phrase structure |
-| 7 | `target_difficulty` | the requested star rating (the knob generation turns) |
-| 8–13 | `band_0 … band_5` | the six spectral-band energies — the timbre at this moment |
+| 3 | `local_density_fine` | a short-window density that spikes on brief bursts — fast drum fills the wide window misses |
+| 4–5 | `tick_in_beat` (sin, cos) | position within the beat — downbeat? off-beat? a 1/4 subdivision? |
+| 6–7 | `beat_in_bar` (sin, cos) | position within the bar — phrase structure |
+| 8 | `target_difficulty` | the requested star rating (the global knob generation turns) |
+| 9 | `local_intensity` | `target_difficulty` × section energy — an effective *per-section* difficulty, so calm parts stay easy at a high target |
+| 10–15 | `band_0 … band_5` | the six spectral-band energies — the timbre at this moment |
 
 Metrical position is encoded as sine/cosine pairs rather than a raw number so the model sees it as a
 smooth cycle (tick 47 is adjacent to tick 0, not far from it). Everything is normalized per map to a
@@ -61,8 +63,11 @@ common range, so a quiet song and a loud one look comparable to the network.
 
 The spectral bands are why the model can place *color* sensibly rather than guessing: a bass-heavy kick
 and a bright snare have different band signatures, and the model learns which tends to be a don and
-which a kat. `target_difficulty` is special — at generation time it's the dial the difficulty-targeting
-loop turns (see [docs/05](05-generation.md)).
+which a kat. The two density scales matter for *dynamics*: the wide `local_density` gives the section's
+overall energy while `local_density_fine` flags the short 1/16 bursts a wide window would smooth over.
+And `target_difficulty` is the global dial the difficulty-targeting loop turns (see
+[docs/05](05-generation.md)), while `local_intensity` folds in the local energy so cranking that dial to
+hit a hard overall rating doesn't force the calm intro to be dense.
 
 ## 3.4 Putting it together
 

@@ -24,11 +24,16 @@ The result is a [`MonoAudio`](../src/TaikoMapper.Audio/Decoding/MonoAudio.cs) �
 An **onset** is the start of a note-like event — a drum hit, a plucked string, a vocal syllable. We
 don't need to identify *what* made the sound, only *when* energy suddenly appears.
 
-The signal is cut into short overlapping frames (1024 samples, hop 256). Each frame is run through a
-**Fast Fourier Transform**, which decomposes it into how much energy sits at each frequency. Comparing
-one frame's spectrum to the previous and summing only the *increases* (half-wave-rectified
+The signal is cut into short overlapping frames — a **narrow ~512-sample window, hop 128**. Each frame is
+run through a **Fast Fourier Transform**, which decomposes it into how much energy sits at each frequency.
+Comparing one frame's spectrum to the previous and summing only the *increases* (half-wave-rectified
 **spectral flux**) gives a number per frame that spikes when new energy arrives. That per-frame series
 is the **onset detection function**.
+
+The window is deliberately narrow: two drum hits closer together than the window smear into a single bump,
+so a wide window would miss fast bursts. Tempo and offset detection instead use a separate, **wider** pass
+(§2.3) — there, averaging out sub-beat detail is exactly what keeps the beat from being mistaken for a
+subdivision.
 
 [`SpectralFluxAnalyzer`](../src/TaikoMapper.Audio/Onsets/SpectralFluxAnalyzer.cs) computes this and, in the same
 pass, the per-frame energy in six **log-spaced frequency bands** (bass → treble). The bands are the
@@ -40,11 +45,19 @@ model later uses them as features. The output is an
 
 Music is periodic: beats recur at a roughly fixed spacing. **Autocorrelation** of the onset function —
 how well it lines up with a time-shifted copy of itself — peaks at that spacing. The peak's lag gives
-the beat period, and so the tempo in BPM.
+the beat period, and so the tempo in BPM. This runs on a **wider-window** onset function than §2.2: a
+sharp one has strong peaks at every sub-beat onset, so the autocorrelation would lock onto a subdivision
+and report double (or quadruple) the true BPM.
 
 The catch is **octave ambiguity**: a 120 BPM track also correlates at 60 and 240. To resolve it,
 [`TempoEstimator`](../src/TaikoMapper.Audio/Timing/TempoEstimator.cs) weights candidates by a broad log-Gaussian
 **prior** centered on typical osu! tempos, so a sensible octave wins without hard-coding one value.
+
+**Refining the BPM.** Autocorrelation only pins the tempo to ~1 BPM — but even half a BPM off drifts the
+grid by hundreds of milliseconds over a few minutes. So the tempo is then *refined*: the analyzer measures
+how the beat **phase** drifts across the whole song, and a linear drift is precisely a BPM error (its
+slope gives the exact correction). Using the whole track as the baseline makes this far more accurate than
+the autocorrelation lag — the grid stays aligned end to end instead of only near the start.
 
 ## 2.4 Automatic timing
 
@@ -54,10 +67,12 @@ of **timing segments** (each a start time + BPM, i.e. one osu! timing point) in 
 
 **Tier 1 — offset and drift.** The precise offset is the beat *phase* that best aligns the onset
 function to a grid at the detected tempo (a comb fold over one beat, refined to sub-frame resolution).
-But a BPM that's even slightly off accumulates phase error over minutes, so the grid slowly slides out
-of sync. The analyzer tracks the phase in sliding windows, smoothed and unwrapped so it doesn't jump,
-and emits a **re-anchoring segment** — same BPM, corrected offset — whenever the drift exceeds a
-tolerance. Most songs need one segment; a slightly-off tempo gets a few.
+Because the BPM is refined precisely (§2.3), the grid no longer slides — a constant-tempo song is usually
+**one segment** for its whole length. As a safety net for genuine residual drift, the analyzer still
+tracks the phase in sliding windows and can emit a **re-anchoring segment** (same BPM, corrected offset),
+but only when the drift grows *well* past tolerance. This is deliberately conservative: with an accurate
+BPM there is little to correct, and an over-eager re-anchor can be fooled by a locally-ambiguous section
+(syncopation, a breakdown) into shifting a stretch of the map onto the wrong phase.
 
 **Tier 2 — tempo changes.** Some songs genuinely change tempo. The analyzer estimates the tempo in
 large sliding windows and looks for a sustained shift. The trap is that dense sections make a window's

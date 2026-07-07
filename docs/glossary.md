@@ -12,8 +12,9 @@ new energy appears, so it marks onsets.
 **FFT (Fast Fourier Transform)** — decomposes a short slice of audio into how much energy sits at each
 frequency. Computed per frame.
 
-**Frame / hop** — the analysis window (1024 samples) and how far it advances each step (256 samples).
-Frames overlap.
+**Frame / hop** — the (overlapping) analysis window and how far it advances each step. Onset detection
+uses a narrow window (~512 samples) to resolve fast bursts; tempo/offset use a wider one (~1024) that
+averages out sub-beats.
 
 **Spectral band** — energy summed over a range of frequencies. Six log-spaced bands (bass → treble)
 form a coarse description of timbre over time, used as model features.
@@ -24,13 +25,17 @@ form a coarse description of timbre over time, used as model features.
 the beat period and so the tempo.
 
 **Octave error** — mistaking a tempo for half or double its true value (they correlate too). Resolved
-with a tempo prior.
+with a tempo prior (and by estimating tempo on a wider-window onset function that averages out sub-beats).
+
+**BPM refinement** — correcting a coarse tempo estimate by measuring the beat‑phase drift across the whole
+song: a linear drift is exactly a BPM error, and its slope gives a precise correction so the grid stays
+aligned end to end.
 
 **Offset** — the time of the first beat; equivalently the beat **phase** that best aligns the grid to
 the music.
 
 **Drift** — a slightly-wrong BPM accumulating phase error over a song, so the grid slides out of sync.
-Corrected by re-anchoring.
+Removed by refining the BPM; re-anchoring the offset is a conservative fallback.
 
 **Timing segment / timing point** — a (start time, BPM) region. One osu! uninherited timing point. A
 song may have several (from drift re-anchoring or tempo changes).

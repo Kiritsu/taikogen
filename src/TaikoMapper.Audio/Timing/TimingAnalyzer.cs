@@ -18,7 +18,7 @@ namespace TaikoMapper.Audio.Timing;
 public sealed class TimingAnalyzer(
     double windowSeconds = 8.0,
     double stepSeconds = 2.0,
-    double driftFraction = 0.28,
+    double driftFraction = 0.45,
     double minSegmentSeconds = 12.0,
     TempoEstimator? tempo = null)
 {
@@ -44,7 +44,8 @@ public sealed class TimingAnalyzer(
             throw new ArgumentOutOfRangeException(nameof(bpm));
 
         var segments = new List<TimingSegment>();
-        AnchorRegion(odf, 0, odf.Flux.Length, bpm, beatsPerMeasure, isFirst: true, segments);
+        // A manual/asserted BPM is respected exactly (refine: false); drift is still re-anchored.
+        AnchorRegion(odf, 0, odf.Flux.Length, bpm, beatsPerMeasure, isFirst: true, refine: false, segments);
         return segments;
     }
 
@@ -61,9 +62,62 @@ public sealed class TimingAnalyzer(
 
         var segments = new List<TimingSegment>();
         var regions = DetectTempoRegions(odf, bpmPrior);
+        // Fully-automatic: refine each region's BPM from its phase drift so the grid doesn't slide.
         for (var k = 0; k < regions.Count; k++)
-            AnchorRegion(odf, regions[k].Start, regions[k].End, regions[k].Bpm, beatsPerMeasure, isFirst: k == 0, segments);
+            AnchorRegion(odf, regions[k].Start, regions[k].End, regions[k].Bpm, beatsPerMeasure, isFirst: k == 0, refine: true, segments);
         return segments;
+    }
+
+    /// <summary>
+    /// Refines <paramref name="bpm"/> over the whole song by measuring how the beat phase drifts with time.
+    /// A slightly-wrong BPM makes the phase drift linearly; the slope is the exact correction. Measured
+    /// across the whole track this is far more precise than the autocorrelation lag, and it removes the slow
+    /// drift that leaves the grid perfect near an anchor and off between anchors.
+    /// </summary>
+    public double RefineBpm(OnsetEnvelope odf, double bpm)
+    {
+        ArgumentNullException.ThrowIfNull(odf);
+        return RefineBpmInRange(odf, 0, odf.Flux.Length, bpm);
+    }
+
+    private double RefineBpmInRange(OnsetEnvelope odf, int start, int end, double bpm)
+    {
+        if (bpm <= 0 || !double.IsFinite(bpm))
+            return bpm;
+
+        var flux = odf.Flux;
+        var frameRate = odf.FrameRate;
+        var beatMs = 60_000.0 / bpm;
+        var periodFrames = 60.0 * frameRate / bpm;
+        var windowFrames = Math.Max(1, (int)(windowSeconds * frameRate));
+        var stepFrames = Math.Max(1, (int)(stepSeconds * frameRate));
+        if (end - start < windowFrames * 2)
+            return bpm; // too short to measure a reliable slope
+
+        // Least-squares slope of the unwrapped beat phase (ms) versus time (ms).
+        double sumX = 0, sumY = 0, sumXX = 0, sumXY = 0;
+        var n = 0;
+        var tracked = Mod(BestPhaseMs(flux, start, Math.Min(end, start + windowFrames), periodFrames, odf), beatMs);
+        for (var c = start + windowFrames / 2; c < end; c += stepFrames)
+        {
+            var s0 = Math.Max(start, c - windowFrames / 2);
+            var s1 = Math.Min(end, c + windowFrames / 2);
+            var raw = Mod(BestPhaseMs(flux, s0, s1, periodFrames, odf), beatMs);
+            tracked += WrapHalf(raw - tracked, beatMs); // unwrap continuously — the true slope, no smoothing
+            var t = odf.FrameToMs(c);
+            sumX += t; sumY += tracked; sumXX += t * t; sumXY += t * tracked; n++;
+        }
+        if (n < 3)
+            return bpm;
+
+        var denom = n * sumXX - sumX * sumX;
+        if (Math.Abs(denom) < 1e-9)
+            return bpm;
+
+        var slope = (n * sumXY - sumX * sumY) / denom; // ms of phase per ms of time (dimensionless)
+        // phase slope s ⇒ true bpm = bpm × (1 − s); clamp the correction to ±5% to guard against noise.
+        var corrected = bpm * (1.0 - Math.Clamp(slope, -0.05, 0.05));
+        return double.IsFinite(corrected) && corrected > 0 ? corrected : bpm;
     }
 
     /// <summary>
@@ -71,8 +125,11 @@ public sealed class TimingAnalyzer(
     /// a starting segment (the global offset for the first region; the first downbeat at/after the boundary
     /// otherwise), then drift re-anchors within the region.
     /// </summary>
-    private void AnchorRegion(OnsetEnvelope odf, int regionStart, int regionEnd, double bpm, int meter, bool isFirst, List<TimingSegment> segments)
+    private void AnchorRegion(OnsetEnvelope odf, int regionStart, int regionEnd, double bpm, int meter, bool isFirst, bool refine, List<TimingSegment> segments)
     {
+        if (refine)
+            bpm = RefineBpmInRange(odf, regionStart, regionEnd, bpm);
+
         var flux = odf.Flux;
         var frameRate = odf.FrameRate;
         var periodFrames = 60.0 * frameRate / bpm;

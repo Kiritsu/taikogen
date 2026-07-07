@@ -34,6 +34,23 @@ public class RhythmAnalyzerTests
     }
 
     [Test]
+    public void Sub_beat_energy_does_not_double_the_detected_tempo()
+    {
+        // Strong beats at 150 BPM plus weaker off-beats (a 300 BPM track) — the sub-beat energy that
+        // tempts the tempo autocorrelation to lock onto the half-beat and report 300.
+        const double bpm = 150.0;
+        var beats = Synth.ClickTrack(bpm, offsetMs: 0, durationSeconds: 20.0, SampleRate);
+        var offbeats = Synth.ClickTrack(bpm * 2, offsetMs: 0, durationSeconds: 20.0, SampleRate, seed: 99);
+        var mixed = new float[beats.Length];
+        for (var i = 0; i < mixed.Length; i++)
+            mixed[i] = 0.7f * beats[i] + 0.3f * offbeats[i];
+
+        var analysis = new RhythmAnalyzer().Analyze(new MonoAudio(mixed, SampleRate));
+
+        Assert.That(analysis.Segment.Bpm, Is.EqualTo(bpm).Within(6.0), "detected the beat, not the doubled sub-beat");
+    }
+
+    [Test]
     public void Detects_offset_of_a_synthetic_click_track()
     {
         const double bpm = 150.0;       // period = 400 ms

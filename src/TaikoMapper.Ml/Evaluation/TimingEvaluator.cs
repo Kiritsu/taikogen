@@ -67,9 +67,10 @@ public sealed class TimingEvaluator
         {
             try
             {
+                // Coarse window (1024/256) for tempo + offset — the same analysis generation uses for timing.
                 var envelope = envelopeCache.GetOrAdd(
                     Path.GetFullPath(job.AudioPath),
-                    p => new Lazy<OnsetEnvelope>(() => new SpectralFluxAnalyzer().Analyze(AudioDecoder.Decode(p)),
+                    p => new Lazy<OnsetEnvelope>(() => new SpectralFluxAnalyzer(1024, 256).Analyze(AudioDecoder.Decode(p)),
                         LazyThreadSafetyMode.ExecutionAndPublication)).Value;
 
                 var detectedBpm = new TempoEstimator().Estimate(envelope).Bpm;

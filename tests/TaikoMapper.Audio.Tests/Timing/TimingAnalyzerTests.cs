@@ -27,6 +27,22 @@ public class TimingAnalyzerTests
     private static double PeriodFrames(double bpm) => 60.0 * ((double)SampleRate / HopSize) / bpm;
 
     [Test]
+    public void Refine_bpm_corrects_a_slightly_wrong_tempo_from_the_phase_drift()
+    {
+        // True click track at 150 BPM; a slightly-wrong 151 BPM drifts, and the slope should pull it back.
+        var odf = ClickTrack(frames: 9000, impulsePeriodFrames: PeriodFrames(150.0)); // ~52 s
+
+        var refined = new TimingAnalyzer().RefineBpm(odf, 151.0);
+        var unchanged = new TimingAnalyzer().RefineBpm(odf, 150.0);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(refined, Is.EqualTo(150.0).Within(0.5), "the phase-drift slope corrects the wrong BPM");
+            Assert.That(unchanged, Is.EqualTo(150.0).Within(0.3), "an already-correct BPM is left alone");
+        });
+    }
+
+    [Test]
     public void Constant_aligned_tempo_yields_a_single_segment()
     {
         var period = PeriodFrames(120.0);
@@ -94,7 +110,11 @@ public class TimingAnalyzerTests
 
         var segments = new TimingAnalyzer().AnalyzeMultiTempo(odf, bpmPrior: 180.0);
 
-        Assert.That(segments, Has.All.Matches<TimingSegment>(s => Math.Abs(s.Bpm - 180.0) <= 1e-9),
-            "no false tempo split on a constant-tempo track");
+        // No false tempo split: every segment is one tempo, ~180 (BPM refinement may nudge it a hair).
+        Assert.Multiple(() =>
+        {
+            Assert.That(segments, Has.All.Matches<TimingSegment>(s => Math.Abs(s.Bpm - 180.0) <= 0.5));
+            Assert.That(segments.Select(s => Math.Round(s.Bpm, 3)).Distinct().Count(), Is.EqualTo(1), "a single tempo");
+        });
     }
 }

@@ -32,12 +32,21 @@ public sealed record RhythmAnalysis(
 /// segment; a manual BPM override skips tempo detection. Fully automatic timing is hard and
 /// will be wrong on some tracks — overrides always win.
 /// </summary>
+/// <remarks>
+/// Two onset envelopes are computed. A <b>coarse</b> one (wide STFT window) drives tempo and
+/// offset detection: it averages out sub-beat detail, so the autocorrelation locks onto the beat
+/// rather than a subdivision (a sharp envelope tends to double the BPM). A <b>fine</b> one (the
+/// default, narrow window) is returned as <see cref="RhythmAnalysis.Onsets"/> for peak-picking and
+/// the model's features, where resolving fast bursts matters.
+/// </remarks>
 public sealed class RhythmAnalyzer(
     SpectralFluxAnalyzer? flux = null,
     TempoEstimator? tempo = null,
-    TimingAnalyzer? timing = null)
+    TimingAnalyzer? timing = null,
+    SpectralFluxAnalyzer? timingFlux = null)
 {
-    private readonly SpectralFluxAnalyzer _flux = flux ?? new SpectralFluxAnalyzer();
+    private readonly SpectralFluxAnalyzer _flux = flux ?? new SpectralFluxAnalyzer();                 // fine: onsets + features
+    private readonly SpectralFluxAnalyzer _timingFlux = timingFlux ?? new SpectralFluxAnalyzer(1024, 256); // coarse: stable tempo + offset
     private readonly TempoEstimator _tempo = tempo ?? new TempoEstimator();
     private readonly TimingAnalyzer _timing = timing ?? new TimingAnalyzer();
 
@@ -45,7 +54,8 @@ public sealed class RhythmAnalyzer(
     {
         ArgumentNullException.ThrowIfNull(audio);
 
-        var onsets = _flux.Analyze(audio);
+        var onsets = _flux.Analyze(audio);              // fine — for peak-picking + features
+        var timingOnsets = _timingFlux.Analyze(audio);  // coarse — for tempo + offset/drift
 
         double bpm;
         double confidence;
@@ -59,7 +69,7 @@ public sealed class RhythmAnalyzer(
         }
         else
         {
-            var result = _tempo.Estimate(onsets);
+            var result = _tempo.Estimate(timingOnsets);
             bpm = result.Bpm;
             confidence = result.Confidence;
             candidates = result.Candidates;
@@ -72,8 +82,8 @@ public sealed class RhythmAnalyzer(
         var segments = offsetMsOverride is { } off
             ? [new TimingSegment(off, bpm)]
             : bpmOverride is not null
-                ? _timing.Analyze(onsets, bpm)
-                : _timing.AnalyzeMultiTempo(onsets, bpm);
+                ? _timing.Analyze(timingOnsets, bpm)
+                : _timing.AnalyzeMultiTempo(timingOnsets, bpm);
 
         return new RhythmAnalysis(
             segments,

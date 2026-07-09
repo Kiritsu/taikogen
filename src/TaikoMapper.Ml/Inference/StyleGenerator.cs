@@ -179,6 +179,7 @@ public sealed class StyleGenerator
         var temp = Math.Max(temperature, 1e-3);
         var length = features.Length;
         var tokens = new TaikoToken[length];
+        var dev = model.Device;
 
         using var _ = no_grad();
         using var outer = NewDisposeScope();
@@ -190,11 +191,11 @@ public sealed class StyleGenerator
         for (var t = 0; t < length; t++)
         {
             using var scope = NewDisposeScope();
-            using var featT = tensor(features[t]).reshape(1, 1, featureCount);
-            using var prevT = tensor([prev]).reshape(1, 1);
+            using var featT = tensor(features[t]).reshape(1, 1, featureCount).to(dev);
+            using var prevT = tensor([prev]).reshape(1, 1).to(dev);
 
             var (logits, hN) = model.RunSequenceWithStyle(featT, style, prevT, h);
-            var probs = (logits.reshape(TaikoStyleModel.Vocab) / temp).softmax(0).data<float>().ToArray();
+            var probs = (logits.reshape(TaikoStyleModel.Vocab) / temp).softmax(0).cpu().data<float>().ToArray();
 
             var token = Sample(probs, rng);
             tokens[t] = (TaikoToken)token;

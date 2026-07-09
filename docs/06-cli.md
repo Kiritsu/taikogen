@@ -67,7 +67,7 @@ thin for style learning.
 
 ### `train <dataset-dir> --out <model.dat> [options]`
 
-Train the author-style model on a built dataset (TorchSharp, CPU). Writes `model.dat` and a
+Train the author-style model on a built dataset (TorchSharp). Writes `model.dat` and a
 `model.dat.json` sidecar, checkpointing after every epoch.
 
 | Option | Effect |
@@ -77,6 +77,25 @@ Train the author-style model on a built dataset (TorchSharp, CPU). Writes `model
 | `--window <w>` / `--stride <s>` | window length and stride for slicing long maps |
 | `--batch <b>` | batch size |
 | `--seed <n>` | RNG seed |
+| `--device <d>` | `auto` (default) / `cpu` / `cuda` — see [Devices](#devices) |
+
+### Devices
+
+Both `train` and `generate` take `--device auto|cpu|cuda`. `auto` uses a GPU when one is available,
+else CPU. Using a GPU is a **build‑time** choice of native backend (the default build is CPU‑only):
+
+- **NVIDIA (CUDA)** — build with `-p:TorchBackend=cuda`. Override the CUDA package to match your toolkit
+  if needed: `-p:TorchCudaPackage=libtorch-cuda-<ver>-<os>-x64 -p:TorchCudaVersion=<ver>`. Accelerates
+  training and generation.
+- **AMD on Linux (ROCm)** — build with `-p:TorchBackend=none` and provide a ROCm‑built libtorch on the
+  native library path. ROCm presents as the CUDA device type, so use `--device cuda`.
+- **AMD/Intel on Windows** — no GPU path: TorchSharp ships no ROCm/DirectML backend, and the only
+  Windows option (DirectML via ONNX Runtime) would need the model exported to ONNX — which neither
+  TorchSharp (no exporter) nor ONNX Runtime's .NET API (runtime‑only, no graph builder) can produce.
+  Generation runs on CPU, which is fast for a one‑shot map anyway.
+
+A GPU's math isn't bit‑identical to the CPU's, so a GPU‑generated map can differ *slightly* from the
+CPU one at the same seed.
 
 ### `generate <audio> --model <model.dat> --difficulty <stars> [options]`
 
@@ -92,6 +111,7 @@ model's conditioning against the official star rating) and applies the playabili
 | `--seed <n>` | RNG seed (generation is deterministic given the seed) |
 | `--out <path>` | output path; `.osz` (default, imports into osu!lazer) or `.osu` for a bare map |
 | `--bpm <v>` / `--offset <ms>` | override automatic timing |
+| `--device <d>` | `auto` (default) / `cpu` / `cuda` — see [Devices](#devices) |
 
 Example:
 

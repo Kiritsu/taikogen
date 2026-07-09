@@ -1,11 +1,30 @@
 using NUnit.Framework;
 using TaikoMapper.Ml.Model;
+using TorchSharp;
 using static TorchSharp.torch;
 
 namespace TaikoMapper.Ml.Tests.Model;
 
 public class TaikoStyleModelTests
 {
+    [Test]
+    public void Reports_its_device_and_move_to_same_device_is_a_noop()
+    {
+        var model = new TaikoStyleModel(featureCount: 7, numAuthors: 2, dModel: 16, dHidden: 16);
+
+        Assert.That(model.Device.type, Is.EqualTo(DeviceType.CPU));
+        model.MoveTo(model.Device); // no-op — must not throw or change device
+
+        using var _ = no_grad();
+        using var style = model.StyleVector(1); // index tensor must be created on the model's device
+        Assert.Multiple(() =>
+        {
+            Assert.That(model.Device.type, Is.EqualTo(DeviceType.CPU));
+            Assert.That(style.device.type, Is.EqualTo(DeviceType.CPU));
+            Assert.That(style.shape, Is.EqualTo(new long[] { 16 }));
+        });
+    }
+
     [Test]
     public void Forward_returns_batch_time_vocab_logits()
     {

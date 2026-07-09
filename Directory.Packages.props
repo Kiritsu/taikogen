@@ -18,7 +18,8 @@
   </ItemGroup>
 
   <ItemGroup Label="ML">
-    <!-- TorchSharp = managed bindings; libtorch-cpu = native backend (CPU; AMD/ROCm not shipped). -->
+    <!-- TorchSharp = managed bindings; the native backend is a build-time switch in TaikoMapper.Ml.csproj
+         (-p:TorchBackend=cpu|cuda|none). The CUDA package is pinned there via VersionOverride. -->
     <PackageVersion Include="TorchSharp" Version="0.107.0" />
     <PackageVersion Include="libtorch-cpu" Version="2.10.0" />
   </ItemGroup>

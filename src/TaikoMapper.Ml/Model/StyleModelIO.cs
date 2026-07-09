@@ -1,4 +1,5 @@
 using System.Text.Json;
+using static TorchSharp.torch;
 
 namespace TaikoMapper.Ml.Model;
 
@@ -32,14 +33,16 @@ public static class StyleModelIo
         File.WriteAllText(path + ".json", JsonSerializer.Serialize(config, JsonOptions));
     }
 
-    public static (TaikoStyleModel model, ModelConfig config) Load(string path)
+    public static (TaikoStyleModel model, ModelConfig config) Load(string path, Device? device = null)
     {
         ArgumentException.ThrowIfNullOrEmpty(path);
         var config = JsonSerializer.Deserialize<ModelConfig>(File.ReadAllText(path + ".json"))
                      ?? throw new InvalidDataException($"Missing/invalid model config: {path}.json");
 
         var model = new TaikoStyleModel(config.FeatureCount, config.AuthorCount, config.DModel, config.DHidden, config.Layers);
-        model.load(path);
+        model.load(path); // weights load onto CPU
+        if (device is not null)
+            model.MoveTo(device);
         return (model, config);
     }
 }

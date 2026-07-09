@@ -17,16 +17,19 @@ public sealed class StyleTrainer
     /// Trains <paramref name="model"/> in place. <paramref name="onEpochEnd"/> is invoked after each
     /// epoch (e.g. to checkpoint), so long CPU runs can be stopped early without losing progress.
     /// </summary>
-    public void Train(TaikoStyleModel model, TaikoDataset dataset, Options options, Action<string>? log = null, Action<int>? onEpochEnd = null)
+    public void Train(TaikoStyleModel model, TaikoDataset dataset, Options options, Action<string>? log = null, Action<int>? onEpochEnd = null, Device? device = null)
     {
         ArgumentNullException.ThrowIfNull(model);
         ArgumentNullException.ThrowIfNull(dataset);
         ArgumentNullException.ThrowIfNull(options);
 
-        manual_seed(options.Seed);
+        manual_seed(options.Seed); // seeds CPU and CUDA generators
         var rng = new Random(options.Seed);
 
-        using var classWeights = ClassWeights(dataset);
+        var dev = device ?? CPU;
+        model.MoveTo(dev);
+
+        using var classWeights = ClassWeights(dataset, dev);
         var loss = nn.CrossEntropyLoss(weight: classWeights);
         var optimizer = optim.Adam(model.parameters(), lr: options.LearningRate);
 
@@ -51,7 +54,7 @@ public sealed class StyleTrainer
                 var n = Math.Min(batch, order.Length - b);
                 var w = dataset.Windows[order[b]].Length;
 
-                var (features, authors, targets, prevTokens) = Stack(dataset, order, b, n, w, f);
+                var (features, authors, targets, prevTokens) = Stack(dataset, order, b, n, w, f, dev);
 
                 var logits = model.forward(features, authors, prevTokens); // [n,w,V]
                 var flatLogits = logits.reshape(n * w, TaikoStyleModel.Vocab);
@@ -82,7 +85,7 @@ public sealed class StyleTrainer
     /// the target tokens shifted right by one.
     /// </summary>
     private static (Tensor features, Tensor authors, Tensor targets, Tensor prevTokens) Stack(
-        TaikoDataset dataset, int[] order, int b, int n, int w, int f)
+        TaikoDataset dataset, int[] order, int b, int n, int w, int f, Device dev)
     {
         var featBuf = new float[n * w * f];
         var tokBuf = new long[n * w];
@@ -101,10 +104,10 @@ public sealed class StyleTrainer
             authBuf[i] = win.AuthorId;
         }
 
-        var features = tensor(featBuf).reshape(n, w, f);
-        var authors = tensor(authBuf);
-        var targets = tensor(tokBuf).reshape(n, w);
-        var prevTokens = tensor(prevBuf).reshape(n, w);
+        var features = tensor(featBuf).reshape(n, w, f).to(dev);
+        var authors = tensor(authBuf).to(dev);
+        var targets = tensor(tokBuf).reshape(n, w).to(dev);
+        var prevTokens = tensor(prevBuf).reshape(n, w).to(dev);
         return (features, authors, targets, prevTokens);
     }
 
@@ -114,7 +117,7 @@ public sealed class StyleTrainer
     /// frequency over all classes instead up-weights the rarest token, i.e. finishers, into a flood.)
     /// The empty-token weight balances placed-vs-empty so the map isn't all rests nor a wall of notes.
     /// </summary>
-    private static Tensor ClassWeights(TaikoDataset dataset)
+    private static Tensor ClassWeights(TaikoDataset dataset, Device dev)
     {
         var counts = new double[TaikoStyleModel.Vocab];
         foreach (var window in dataset.Windows)
@@ -128,7 +131,7 @@ public sealed class StyleTrainer
         Array.Fill(weights, 1.0f);
         weights[(int)TaikoToken.None] = (float)Math.Clamp(placed / Math.Max(1.0, none), 0.2, 1.0);
 
-        return tensor(weights);
+        return tensor(weights).to(dev);
     }
 
     /// <summary>Counts correct predictions on placed (non-None) target ticks, for a quick quality read.</summary>

@@ -82,5 +82,7 @@ Training writes `model.dat` (the weights) plus a `model.dat.json` sidecar
 ticks-per-beat, the feature names, and the author→id map — everything inference needs to reconstruct
 and drive the model.
 
-> **Hardware note.** The backend is CPU `libtorch`. CUDA is NVIDIA-only and TorchSharp ships no ROCm
-> build, so AMD GPUs aren't used; at this model size CPU training is fine.
+> **Hardware note.** The default build is CPU `libtorch`, and at this model size CPU training is fine.
+> A GPU backend is a build-time switch (`-p:TorchBackend=cuda`) with `--device cuda` at run time —
+> NVIDIA via CUDA, or AMD on Linux via a ROCm-built libtorch (ROCm presents as the CUDA device type).
+> AMD/Intel on Windows can't run TorchSharp; see [docs/06 → Devices](06-cli.md#devices).

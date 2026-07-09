@@ -40,7 +40,7 @@ internal static class App
                 _ => UnknownCommand(command),
             };
         }
-        catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException or NotSupportedException or ArgumentException or IOException)
+        catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException or NotSupportedException or ArgumentException or InvalidOperationException or IOException)
         {
             Console.Error.WriteLine($"error: {ex.Message}");
             return 1;
@@ -102,7 +102,7 @@ internal static class App
 
     private static int RunGenerate(string[] args)
     {
-        var parsed = new ArgParser(args, ValueOptions("--difficulty", "--seed", "--out", "--bpm", "--offset", "--model", "--author", "--temp"));
+        var parsed = new ArgParser(args, ValueOptions("--difficulty", "--seed", "--out", "--bpm", "--offset", "--model", "--author", "--temp", "--device"));
         var path = parsed.FirstPositional();
         if (path is null)
             return Error("generate requires an audio file path.");
@@ -120,7 +120,7 @@ internal static class App
         var offset = parsed.GetDouble("--offset");
         var outPath = parsed.GetString("--out") ?? Path.GetFileNameWithoutExtension(path) + ".osz";
 
-        return GenerateWithModel(path, modelPath, parsed.GetString("--author"), stars.Value, parsed.GetDouble("--temp") ?? 0.8, seed, bpm, offset, outPath);
+        return GenerateWithModel(path, modelPath, parsed.GetString("--author"), stars.Value, parsed.GetDouble("--temp") ?? 0.8, seed, bpm, offset, outPath, parsed.GetString("--device"));
     }
 
     // ---- dataset (build / inspect a training corpus) --------------------------
@@ -220,13 +220,14 @@ internal static class App
 
     private static int RunTrain(string[] args)
     {
-        var parsed = new ArgParser(args, ValueOptions("--out", "--epochs", "--window", "--stride", "--seed", "--batch"));
+        var parsed = new ArgParser(args, ValueOptions("--out", "--epochs", "--window", "--stride", "--seed", "--batch", "--device"));
         var dir = parsed.FirstPositional();
         if (dir is null)
             return Error("train requires a dataset directory (from `dataset build`).");
         if (!Directory.Exists(dir))
             return Error($"dataset not found: {dir}");
 
+        var device = TorchDevice.Resolve(parsed.GetString("--device"), out var deviceLabel);
         var outPath = parsed.GetString("--out") ?? "model.dat";
         var window = parsed.GetInt("--window") ?? 512;
         var stride = parsed.GetInt("--stride") ?? 384;
@@ -245,12 +246,12 @@ internal static class App
             dataset.FeatureCount, dataset.TicksPerBeat, dModel, dHidden, layers,
             new Dictionary<string, int>(dataset.Authors), MapFeatureExtractor.FeatureNames);
 
-        Console.WriteLine($"training: {options.Epochs} epochs · batch {options.BatchSize} · {dataset.Windows.Count / options.BatchSize + 1} batches/epoch · checkpoints → {outPath} ...");
+        Console.WriteLine($"training: {options.Epochs} epochs · batch {options.BatchSize} · {dataset.Windows.Count / options.BatchSize + 1} batches/epoch · device {deviceLabel} · checkpoints → {outPath} ...");
         new StyleTrainer().Train(model, dataset, options, Console.WriteLine, onEpochEnd: epoch =>
         {
             StyleModelIo.Save(model, config, outPath);
             Console.WriteLine($"  checkpoint saved → {outPath} (epoch {epoch}) — safe to stop");
-        });
+        }, device: device);
 
         StyleModelIo.Save(model, config, outPath);
         Console.WriteLine($"saved model → {outPath} (+ {outPath}.json)");
@@ -258,12 +259,13 @@ internal static class App
     }
 
     private static int GenerateWithModel(
-        string audioPath, string modelPath, string? authorName, double stars, double temperature, int seed, double? bpm, double? offset, string outPath)
+        string audioPath, string modelPath, string? authorName, double stars, double temperature, int seed, double? bpm, double? offset, string outPath, string? deviceSpec)
     {
         if (!File.Exists(modelPath))
             return Error($"model not found: {modelPath}");
 
-        var (model, config) = StyleModelIo.Load(modelPath);
+        var device = TorchDevice.Resolve(deviceSpec, out var deviceLabel);
+        var (model, config) = StyleModelIo.Load(modelPath, device);
         var authors = string.Join(", ", config.Authors.Keys);
 
         // --author is optional: omitting it generates in a generic, author-agnostic style
@@ -279,7 +281,7 @@ internal static class App
         WriteChartToFile(chart, audioPath, version, outPath);
 
         Console.WriteLine($"Generated (model): {outPath}");
-        Console.WriteLine($"  author   : {authorName ?? "generic (all authors averaged)"}");
+        Console.WriteLine($"  author   : {authorName ?? "generic (all authors averaged)"}   device : {deviceLabel}");
         Console.WriteLine($"  target   : {stars:F2}★   achieved : {result.StarRating:F2}★  (temp {temperature:F2}, {result.Iterations} iters, conditioning {result.Conditioning:F2})");
         Console.WriteLine($"  notes    : {chart.NoteCount}  ({chart.NotesPerSecond:F1}/s)  {ColorBreakdown(chart)}");
         return 0;

@@ -11,11 +11,33 @@
     <ProjectReference Include="..\TaikoMapper.Audio\TaikoMapper.Audio.csproj" />
   </ItemGroup>
 
-  <!-- libtorch-cpu is a large native backend; it loads lazily on first tensor op, so torch-free
-       paths (e.g. `dataset build`) don't pay for it at runtime. -->
+  <!--
+    GPU backend is a BUILD-TIME switch (`-p:TorchBackend=...`); the native libtorch loads lazily on the
+    first tensor op, so torch-free paths (e.g. `dataset build`) don't pay for it.
+      cpu  (default) — CPU everywhere.
+      cuda           — NVIDIA CUDA; also AMD/ROCm on Linux (ROCm presents as the CUDA device type).
+                       Override the id/version to match your toolkit:
+                       -p:TorchCudaPackage=libtorch-cuda-<ver>-<os>-x64 -p:TorchCudaVersion=<ver>
+      none           — no libtorch package; provide libtorch on the native path yourself
+                       (e.g. a ROCm-built libtorch on Linux).
+  -->
+  <PropertyGroup>
+    <TorchBackend Condition="'$(TorchBackend)' == ''">cpu</TorchBackend>
+    <TorchCudaVersion Condition="'$(TorchCudaVersion)' == ''">2.10.0</TorchCudaVersion>
+    <TorchCudaPackage Condition="'$(TorchCudaPackage)' == '' and $([MSBuild]::IsOSPlatform('Windows'))">libtorch-cuda-12.8-win-x64</TorchCudaPackage>
+    <TorchCudaPackage Condition="'$(TorchCudaPackage)' == '' and $([MSBuild]::IsOSPlatform('Linux'))">libtorch-cuda-12.8-linux-x64</TorchCudaPackage>
+  </PropertyGroup>
+
   <ItemGroup>
     <PackageReference Include="TorchSharp" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TorchBackend)' == 'cpu'">
     <PackageReference Include="libtorch-cpu" />
   </ItemGroup>
+  <ItemGroup Condition="'$(TorchBackend)' == 'cuda'">
+    <PackageReference Include="$(TorchCudaPackage)" VersionOverride="$(TorchCudaVersion)" />
+  </ItemGroup>
+  <!-- '$(TorchBackend)' == 'none': intentionally references no libtorch package. -->
 
 </Project>

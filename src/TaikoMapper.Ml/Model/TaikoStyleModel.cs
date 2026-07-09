@@ -26,6 +26,22 @@ public sealed class TaikoStyleModel : Module<Tensor, Tensor, Tensor, Tensor>
     private readonly GRU _gru;
     private readonly Linear _head;
 
+    /// <summary>The device the model's parameters currently live on (CPU or CUDA).</summary>
+    public Device Device => _authorEmb.weight!.device;
+
+    /// <summary>
+    /// Moves the whole module (parameters + buffers) to <paramref name="device"/>. TorchSharp exposes
+    /// module movement only as "to the device of a reference tensor" (<c>_to</c>), so we move to a probe
+    /// tensor created on the target device. A no-op when already there.
+    /// </summary>
+    public void MoveTo(Device device)
+    {
+        if (Device.type == device.type && Device.index == device.index)
+            return;
+        using var probe = zeros(1, device: device); // float32 probe carries the target device (+ keeps float dtype)
+        _to(probe, false);
+    }
+
     public TaikoStyleModel(int featureCount, int numAuthors, int dModel = 128, int dHidden = 128, int layers = 1)
         : base(nameof(TaikoStyleModel))
     {
@@ -68,7 +84,7 @@ public sealed class TaikoStyleModel : Module<Tensor, Tensor, Tensor, Tensor>
     /// <summary>The learned style embedding for one author id ([dModel]).</summary>
     public Tensor StyleVector(long authorId)
     {
-        using var id = tensor([authorId]);
+        using var id = tensor([authorId], device: Device); // index must be on the model's device to gather
         return _authorEmb.forward(id).reshape(-1);
     }
 
